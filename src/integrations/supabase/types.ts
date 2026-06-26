@@ -14,16 +14,296 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      announcements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string | null
+          message: string
+          priority: string
+          publish_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          message: string
+          priority?: string
+          publish_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          message?: string
+          priority?: string
+          publish_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bot_settings: {
+        Row: {
+          bot_username: string | null
+          created_at: string
+          default_timezone: string
+          id: string
+          notification_sound: boolean
+          rate_limit: number
+          retry_attempts: number
+          theme: string
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          bot_username?: string | null
+          created_at?: string
+          default_timezone?: string
+          id?: string
+          notification_sound?: boolean
+          rate_limit?: number
+          retry_attempts?: number
+          theme?: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          bot_username?: string | null
+          created_at?: string
+          default_timezone?: string
+          id?: string
+          notification_sound?: boolean
+          rate_limit?: number
+          retry_attempts?: number
+          theme?: string
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
+      broadcasts: {
+        Row: {
+          audience: string
+          button_text: string | null
+          button_url: string | null
+          created_at: string
+          created_by: string | null
+          failed_count: number
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message: string
+          scheduled_at: string | null
+          sent_count: number
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          button_text?: string | null
+          button_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message: string
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          button_text?: string | null
+          button_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          scheduled_at?: string | null
+          sent_count?: number
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      message_logs: {
+        Row: {
+          error: string | null
+          id: string
+          sent_at: string
+          source_id: string | null
+          source_type: string
+          status: string
+          telegram_user_id: string | null
+        }
+        Insert: {
+          error?: string | null
+          id?: string
+          sent_at?: string
+          source_id?: string | null
+          source_type: string
+          status: string
+          telegram_user_id?: string | null
+        }
+        Update: {
+          error?: string | null
+          id?: string
+          sent_at?: string
+          source_id?: string | null
+          source_type?: string
+          status?: string
+          telegram_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_logs_telegram_user_id_fkey"
+            columns: ["telegram_user_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          next_run: string | null
+          repeat_type: string
+          schedule: string
+          status: string
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          next_run?: string | null
+          repeat_type?: string
+          schedule: string
+          status?: string
+          timezone?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          next_run?: string | null
+          repeat_type?: string
+          schedule?: string
+          status?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      telegram_users: {
+        Row: {
+          created_at: string
+          first_name: string | null
+          id: string
+          language: string | null
+          last_active: string | null
+          last_name: string | null
+          phone: string | null
+          status: string
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          language?: string | null
+          last_active?: string | null
+          last_name?: string | null
+          phone?: string | null
+          status?: string
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          language?: string | null
+          last_active?: string | null
+          last_name?: string | null
+          phone?: string | null
+          status?: string
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +430,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
