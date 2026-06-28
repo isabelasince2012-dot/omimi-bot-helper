@@ -55,6 +55,7 @@ export type Database = {
       }
       bot_settings: {
         Row: {
+          bot_token: string | null
           bot_username: string | null
           created_at: string
           default_timezone: string
@@ -67,6 +68,7 @@ export type Database = {
           webhook_url: string | null
         }
         Insert: {
+          bot_token?: string | null
           bot_username?: string | null
           created_at?: string
           default_timezone?: string
@@ -79,6 +81,7 @@ export type Database = {
           webhook_url?: string | null
         }
         Update: {
+          bot_token?: string | null
           bot_username?: string | null
           created_at?: string
           default_timezone?: string
