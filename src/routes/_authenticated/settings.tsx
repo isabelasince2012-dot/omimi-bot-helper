@@ -68,12 +68,23 @@ function SettingsPage() {
   }
 
   async function handleTest() {
+    const formatErr = validateTokenFormat(form.bot_token);
+    if (formatErr) return toast.error(formatErr);
     setTesting(true);
     try {
-      // Save first to ensure the latest token is used
-      if (id) await supabase.from("bot_settings").update({ bot_token: form.bot_token }).eq("id", id);
+      if (id) await supabase.from("bot_settings").update({ bot_token: form.bot_token.trim() }).eq("id", id);
       const res = await test();
-      toast.success(`Connected to @${res.username} (${res.first_name})`);
+      toast.success(`Connected to @${res.username} (${res.first_name})`, {
+        description:
+          (res.webhook_url ? `Webhook: ${res.webhook_url}` : "No webhook registered yet") +
+          ` · ${res.pending_updates} pending`,
+      });
+      if (res.missing_permissions.length) {
+        toast.warning(`Missing permissions: ${res.missing_permissions.join(", ")}`, {
+          description: "Open @BotFather → /mybots → Bot Settings to enable.",
+        });
+      }
+      for (const w of res.warnings) toast.warning(w);
       if (!form.bot_username) setForm((f) => ({ ...f, bot_username: `@${res.username}` }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed");
@@ -81,6 +92,7 @@ function SettingsPage() {
       setTesting(false);
     }
   }
+
 
   async function handleRegisterWebhook() {
     if (!form.webhook_url) return toast.error("Set a webhook URL first");
