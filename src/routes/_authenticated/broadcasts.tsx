@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/broadcasts")({
 
 function BroadcastsPage() {
   const qc = useQueryClient();
+  const dispatch = useServerFn(sendBroadcast);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
