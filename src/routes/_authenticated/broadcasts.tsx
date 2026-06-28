@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useServerFn } from "@tanstack/react-start";
+import { sendBroadcast } from "@/lib/telegram.functions";
 
 export const Route = createFileRoute("/_authenticated/broadcasts")({
   head: () => ({ meta: [{ title: "Broadcasts — Pulse" }] }),
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/broadcasts")({
 
 function BroadcastsPage() {
   const qc = useQueryClient();
+  const dispatch = useServerFn(sendBroadcast);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -56,12 +59,24 @@ function BroadcastsPage() {
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       status,
     };
-    const { error } = await supabase.from("broadcasts").insert(payload);
+    const { data: inserted, error } = await supabase.from("broadcasts").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
-    toast.success(status === "sending" ? "Broadcast queued" : "Broadcast saved");
     setOpen(false);
     setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", scheduled_at: "" });
     qc.invalidateQueries({ queryKey: ["broadcasts"] });
+
+    if (status === "sending" && inserted?.id) {
+      const t = toast.loading("Sending broadcast to Telegram...");
+      try {
+        const res = await dispatch({ data: { broadcastId: inserted.id } });
+        toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+      } catch (e: any) {
+        toast.error(e?.message || "Failed to send broadcast", { id: t });
+      }
+      qc.invalidateQueries({ queryKey: ["broadcasts"] });
+    } else {
+      toast.success("Broadcast saved");
+    }
   }
 
   return (
@@ -179,6 +194,16 @@ function BroadcastsPage() {
                     <span>{format(new Date(b.created_at), "MMM d, yyyy HH:mm")}</span>
                   </div>
                 </div>
+                <Button size="sm" variant="outline" onClick={async () => {
+                  const t = toast.loading("Sending...");
+                  try {
+                    const res = await dispatch({ data: { broadcastId: b.id } });
+                    toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+                    qc.invalidateQueries({ queryKey: ["broadcasts"] });
+                  } catch (e: any) {
+                    toast.error(e?.message || "Failed", { id: t });
+                  }
+                }}><Send className="h-3.5 w-3.5 mr-1.5" />{b.status === "sent" ? "Resend" : "Send now"}</Button>
               </div>
             </CardContent>
           </Card>
