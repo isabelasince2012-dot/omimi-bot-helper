@@ -131,7 +131,12 @@ function SettingsPage() {
                   {testing ? "Testing..." : "Test bot"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Get this from @BotFather. Stored securely; only admins can read or change it.</p>
+              {form.bot_token && validateTokenFormat(form.bot_token) ? (
+                <p className="text-xs text-destructive">{validateTokenFormat(form.bot_token)}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Get this from @BotFather. Stored securely; only admins can read or change it.</p>
+              )}
+
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Bot username</Label><Input value={form.bot_username} onChange={(e) => setForm({ ...form, bot_username: e.target.value })} placeholder="@your_bot" /></div>
