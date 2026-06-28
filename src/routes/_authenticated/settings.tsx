@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { testBot, setWebhook } from "@/lib/telegram.functions";
+import { testBot, setWebhook, validateTokenFormat } from "@/lib/telegram.functions";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,12 +68,23 @@ function SettingsPage() {
   }
 
   async function handleTest() {
+    const formatErr = validateTokenFormat(form.bot_token);
+    if (formatErr) return toast.error(formatErr);
     setTesting(true);
     try {
-      // Save first to ensure the latest token is used
-      if (id) await supabase.from("bot_settings").update({ bot_token: form.bot_token }).eq("id", id);
+      if (id) await supabase.from("bot_settings").update({ bot_token: form.bot_token.trim() }).eq("id", id);
       const res = await test();
-      toast.success(`Connected to @${res.username} (${res.first_name})`);
+      toast.success(`Connected to @${res.username} (${res.first_name})`, {
+        description:
+          (res.webhook_url ? `Webhook: ${res.webhook_url}` : "No webhook registered yet") +
+          ` · ${res.pending_updates} pending`,
+      });
+      if (res.missing_permissions.length) {
+        toast.warning(`Missing permissions: ${res.missing_permissions.join(", ")}`, {
+          description: "Open @BotFather → /mybots → Bot Settings to enable.",
+        });
+      }
+      for (const w of res.warnings) toast.warning(w);
       if (!form.bot_username) setForm((f) => ({ ...f, bot_username: `@${res.username}` }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Test failed");
@@ -81,6 +92,7 @@ function SettingsPage() {
       setTesting(false);
     }
   }
+
 
   async function handleRegisterWebhook() {
     if (!form.webhook_url) return toast.error("Set a webhook URL first");
@@ -119,7 +131,12 @@ function SettingsPage() {
                   {testing ? "Testing..." : "Test bot"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Get this from @BotFather. Stored securely; only admins can read or change it.</p>
+              {form.bot_token && validateTokenFormat(form.bot_token) ? (
+                <p className="text-xs text-destructive">{validateTokenFormat(form.bot_token)}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Get this from @BotFather. Stored securely; only admins can read or change it.</p>
+              )}
+
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Bot username</Label><Input value={form.bot_username} onChange={(e) => setForm({ ...form, bot_username: e.target.value })} placeholder="@your_bot" /></div>
