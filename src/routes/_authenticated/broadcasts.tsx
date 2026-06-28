@@ -194,6 +194,16 @@ function BroadcastsPage() {
                     <span>{format(new Date(b.created_at), "MMM d, yyyy HH:mm")}</span>
                   </div>
                 </div>
+                <Button size="sm" variant="outline" onClick={async () => {
+                  const t = toast.loading("Sending...");
+                  try {
+                    const res = await dispatch({ data: { broadcastId: b.id } });
+                    toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+                    qc.invalidateQueries({ queryKey: ["broadcasts"] });
+                  } catch (e: any) {
+                    toast.error(e?.message || "Failed", { id: t });
+                  }
+                }}><Send className="h-3.5 w-3.5 mr-1.5" />{b.status === "sent" ? "Resend" : "Send now"}</Button>
               </div>
             </CardContent>
           </Card>
