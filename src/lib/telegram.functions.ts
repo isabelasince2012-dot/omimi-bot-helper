@@ -101,3 +101,101 @@ export const setWebhook = createServerFn({ method: "POST" })
     if (!json.ok) throw new Error(json.description || "Failed to set webhook");
     return { ok: true };
   });
+
+export const sendBroadcast = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { broadcastId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: settings } = await supabaseAdmin
+      .from("bot_settings")
+      .select("bot_token")
+      .limit(1)
+      .maybeSingle();
+    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    if (!token) throw new Error("No bot token configured. Set it in Settings.");
+
+    const { data: b, error: bErr } = await supabaseAdmin
+      .from("broadcasts")
+      .select("*")
+      .eq("id", data.broadcastId)
+      .single();
+    if (bErr || !b) throw new Error(bErr?.message || "Broadcast not found");
+
+    let q = supabaseAdmin.from("telegram_users").select("telegram_id, status");
+    if (b.audience === "active") q = q.eq("status", "active");
+    const { data: users, error: uErr } = await q;
+    if (uErr) throw new Error(uErr.message);
+    if (!users || users.length === 0) {
+      await supabaseAdmin.from("broadcasts").update({ status: "sent", sent_count: 0, failed_count: 0 }).eq("id", b.id);
+      return { sent: 0, failed: 0, total: 0 };
+    }
+
+    await supabaseAdmin.from("broadcasts").update({ status: "sending" }).eq("id", b.id);
+
+    const reply_markup = b.button_text && b.button_url
+      ? { inline_keyboard: [[{ text: b.button_text, url: b.button_url }]] }
+      : undefined;
+
+    let sent = 0;
+    let failed = 0;
+    const logs: any[] = [];
+
+    for (const u of users) {
+      try {
+        let endpoint = "sendMessage";
+        let body: any = { chat_id: u.telegram_id, text: b.message, parse_mode: "HTML" };
+        if (reply_markup) body.reply_markup = reply_markup;
+
+        if (b.media_url && b.media_type && b.media_type !== "none") {
+          if (b.media_type === "photo") {
+            endpoint = "sendPhoto";
+            body = { chat_id: u.telegram_id, photo: b.media_url, caption: b.message, parse_mode: "HTML" };
+          } else if (b.media_type === "video") {
+            endpoint = "sendVideo";
+            body = { chat_id: u.telegram_id, video: b.media_url, caption: b.message, parse_mode: "HTML" };
+          } else if (b.media_type === "document") {
+            endpoint = "sendDocument";
+            body = { chat_id: u.telegram_id, document: b.media_url, caption: b.message, parse_mode: "HTML" };
+          }
+          if (reply_markup) body.reply_markup = reply_markup;
+        }
+
+        const res = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const json = (await res.json()) as { ok: boolean; description?: string };
+        if (json.ok) {
+          sent++;
+          logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "sent" });
+        } else {
+          failed++;
+          logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "failed", error: json.description || "unknown" });
+        }
+      } catch (e: any) {
+        failed++;
+        logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "failed", error: e?.message || "network error" });
+      }
+      // light rate-limit
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
+    if (logs.length) {
+      await supabaseAdmin.from("message_logs").insert(logs).then(() => {}, () => {});
+    }
+    await supabaseAdmin
+      .from("broadcasts")
+      .update({ status: failed === users.length ? "failed" : "sent", sent_count: sent, failed_count: failed })
+      .eq("id", b.id);
+
+    return { sent, failed, total: users.length };
+  });
