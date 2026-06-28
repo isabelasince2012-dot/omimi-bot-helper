@@ -129,7 +129,7 @@ export const sendBroadcast = createServerFn({ method: "POST" })
       .single();
     if (bErr || !b) throw new Error(bErr?.message || "Broadcast not found");
 
-    let q = supabaseAdmin.from("telegram_users").select("telegram_id, status");
+    let q = supabaseAdmin.from("telegram_users").select("id, telegram_id, status");
     if (b.audience === "active") q = q.eq("status", "active");
     const { data: users, error: uErr } = await q;
     if (uErr) throw new Error(uErr.message);
@@ -176,22 +176,22 @@ export const sendBroadcast = createServerFn({ method: "POST" })
         const json = (await res.json()) as { ok: boolean; description?: string };
         if (json.ok) {
           sent++;
-          logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "sent" });
+          logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "sent" });
         } else {
           failed++;
-          logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "failed", error: json.description || "unknown" });
+          logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: json.description || "unknown" });
         }
       } catch (e: any) {
         failed++;
-        logs.push({ telegram_user_id: u.telegram_id, message_type: "broadcast", status: "failed", error: e?.message || "network error" });
+        logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: e?.message || "network error" });
       }
-      // light rate-limit
       await new Promise((r) => setTimeout(r, 40));
     }
 
     if (logs.length) {
       await supabaseAdmin.from("message_logs").insert(logs).then(() => {}, () => {});
     }
+
     await supabaseAdmin
       .from("broadcasts")
       .update({ status: failed === users.length ? "failed" : "sent", sent_count: sent, failed_count: failed })
