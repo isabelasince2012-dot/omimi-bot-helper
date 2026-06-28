@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useServerFn } from "@tanstack/react-start";
+import { sendBroadcast } from "@/lib/telegram.functions";
 
 export const Route = createFileRoute("/_authenticated/broadcasts")({
   head: () => ({ meta: [{ title: "Broadcasts — Pulse" }] }),
