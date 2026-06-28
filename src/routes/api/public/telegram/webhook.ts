@@ -45,7 +45,12 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
 
         // Auto-greet on /start
         if (message?.text === "/start") {
-          const token = process.env.TELEGRAM_BOT_TOKEN;
+          const { data: settings } = await supabaseAdmin
+            .from("bot_settings")
+            .select("bot_token")
+            .limit(1)
+            .maybeSingle();
+          const token = settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN;
           if (token) {
             await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
               method: "POST",
@@ -57,6 +62,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             }).catch(() => {});
           }
         }
+
 
         return Response.json({ ok: true });
       },

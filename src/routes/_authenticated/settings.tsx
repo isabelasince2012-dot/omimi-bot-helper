@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { testBot, setWebhook } from "@/lib/telegram.functions";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bot, Webhook } from "lucide-react";
+import { Bot, Webhook, Zap, Link2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — Pulse" }] }),
@@ -18,7 +20,12 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsPage() {
   const qc = useQueryClient();
+  const test = useServerFn(testBot);
+  const register = useServerFn(setWebhook);
+  const [testing, setTesting] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [form, setForm] = useState({
+    bot_token: "",
     bot_username: "",
     webhook_url: "",
     default_timezone: "UTC",
@@ -41,6 +48,7 @@ function SettingsPage() {
     if (data) {
       setId(data.id);
       setForm({
+        bot_token: data.bot_token ?? "",
         bot_username: data.bot_username ?? "",
         webhook_url: data.webhook_url ?? "",
         default_timezone: data.default_timezone,
@@ -59,6 +67,34 @@ function SettingsPage() {
     qc.invalidateQueries({ queryKey: ["bot-settings"] });
   }
 
+  async function handleTest() {
+    setTesting(true);
+    try {
+      // Save first to ensure the latest token is used
+      if (id) await supabase.from("bot_settings").update({ bot_token: form.bot_token }).eq("id", id);
+      const res = await test();
+      toast.success(`Connected to @${res.username} (${res.first_name})`);
+      if (!form.bot_username) setForm((f) => ({ ...f, bot_username: `@${res.username}` }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function handleRegisterWebhook() {
+    if (!form.webhook_url) return toast.error("Set a webhook URL first");
+    setRegistering(true);
+    try {
+      await register({ data: { url: form.webhook_url } });
+      toast.success("Webhook registered with Telegram");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to register webhook");
+    } finally {
+      setRegistering(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Settings" description="Configure your Telegram bot and broadcast behavior." />
@@ -71,8 +107,19 @@ function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Bot token</Label>
-              <Input type="password" placeholder="Stored as a secret on the backend" disabled value="••••••••••••" />
-              <p className="text-xs text-muted-foreground">Token is held server-side. Ask your developer to set <code className="text-foreground">TELEGRAM_BOT_TOKEN</code> as a secret when wiring the webhook.</p>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  placeholder="123456:ABC-DEF..."
+                  value={form.bot_token}
+                  onChange={(e) => setForm({ ...form, bot_token: e.target.value })}
+                />
+                <Button variant="outline" onClick={handleTest} disabled={testing || !form.bot_token}>
+                  <Zap className="h-3.5 w-3.5 mr-1.5" />
+                  {testing ? "Testing..." : "Test bot"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Get this from @BotFather. Stored securely; only admins can read or change it.</p>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Bot username</Label><Input value={form.bot_username} onChange={(e) => setForm({ ...form, bot_username: e.target.value })} placeholder="@your_bot" /></div>
@@ -80,7 +127,14 @@ function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label><Webhook className="h-3 w-3 inline mr-1" /> Webhook URL</Label>
-              <Input value={form.webhook_url} onChange={(e) => setForm({ ...form, webhook_url: e.target.value })} placeholder="https://your-app.lovable.app/api/public/telegram/webhook" />
+              <div className="flex gap-2">
+                <Input value={form.webhook_url} onChange={(e) => setForm({ ...form, webhook_url: e.target.value })} placeholder="https://your-app.lovable.app/api/public/telegram/webhook" />
+                <Button variant="outline" onClick={handleRegisterWebhook} disabled={registering || !form.webhook_url || !form.bot_token}>
+                  <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                  {registering ? "Registering..." : "Register"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Click Register to tell Telegram to send updates to this URL.</p>
             </div>
           </CardContent>
         </Card>
