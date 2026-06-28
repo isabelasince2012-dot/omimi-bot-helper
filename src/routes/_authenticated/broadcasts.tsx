@@ -59,12 +59,24 @@ function BroadcastsPage() {
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       status,
     };
-    const { error } = await supabase.from("broadcasts").insert(payload);
+    const { data: inserted, error } = await supabase.from("broadcasts").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
-    toast.success(status === "sending" ? "Broadcast queued" : "Broadcast saved");
     setOpen(false);
     setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", scheduled_at: "" });
     qc.invalidateQueries({ queryKey: ["broadcasts"] });
+
+    if (status === "sending" && inserted?.id) {
+      const t = toast.loading("Sending broadcast to Telegram...");
+      try {
+        const res = await dispatch({ data: { broadcastId: inserted.id } });
+        toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+      } catch (e: any) {
+        toast.error(e?.message || "Failed to send broadcast", { id: t });
+      }
+      qc.invalidateQueries({ queryKey: ["broadcasts"] });
+    } else {
+      toast.success("Broadcast saved");
+    }
   }
 
   return (
