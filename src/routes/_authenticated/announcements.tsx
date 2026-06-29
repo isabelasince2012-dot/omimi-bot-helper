@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Megaphone } from "lucide-react";
+import { Plus, Megaphone, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,6 +117,13 @@ function AnnouncementsPage() {
                   <p className="text-sm text-muted-foreground">{a.message}</p>
                   <p className="text-xs text-muted-foreground mt-2">{format(new Date(a.created_at), "MMM d, yyyy HH:mm")}</p>
                 </div>
+                <Button variant="ghost" size="icon" onClick={async () => {
+                  if (!confirm("Delete this announcement?")) return;
+                  const { error } = await supabase.from("announcements").delete().eq("id", a.id);
+                  if (error) return toast.error(error.message);
+                  toast.success("Announcement deleted");
+                  qc.invalidateQueries({ queryKey: ["announcements"] });
+                }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div>
             </CardContent>
           </Card>

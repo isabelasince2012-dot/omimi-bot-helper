@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
@@ -18,8 +19,17 @@ export const Route = createFileRoute("/_authenticated/users")({
 });
 
 function UsersPage() {
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
+
+  async function removeUser(id: string, label: string) {
+    if (!confirm(`Delete ${label}? This removes them from the dashboard only.`)) return;
+    const { error } = await supabase.from("telegram_users").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("User deleted");
+    qc.invalidateQueries({ queryKey: ["telegram-users"] });
+  }
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["telegram-users"],
@@ -97,14 +107,15 @@ function UsersPage() {
               <TableHead>Joined</TableHead>
               <TableHead>Last active</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading...</TableCell></TableRow>
             )}
             {!isLoading && filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-12">
                 No users yet. Users will appear when they /start your Telegram bot.
               </TableCell></TableRow>
             )}
@@ -120,6 +131,11 @@ function UsersPage() {
                   <Badge variant={u.status === "active" ? "default" : "secondary"} className={u.status === "active" ? "bg-success/15 text-success border-success/30" : ""}>
                     {u.status}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="icon" onClick={() => removeUser(u.id, u.username ? `@${u.username}` : String(u.telegram_id))}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}

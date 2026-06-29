@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Send, Plus } from "lucide-react";
+import { Send, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -194,16 +194,25 @@ function BroadcastsPage() {
                     <span>{format(new Date(b.created_at), "MMM d, yyyy HH:mm")}</span>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={async () => {
-                  const t = toast.loading("Sending...");
-                  try {
-                    const res = await dispatch({ data: { broadcastId: b.id } });
-                    toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+                <div className="flex flex-col gap-2">
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    const t = toast.loading("Sending...");
+                    try {
+                      const res = await dispatch({ data: { broadcastId: b.id } });
+                      toast.success(`Delivered to ${res.sent}/${res.total}${res.failed ? ` · ${res.failed} failed` : ""}`, { id: t });
+                      qc.invalidateQueries({ queryKey: ["broadcasts"] });
+                    } catch (e: any) {
+                      toast.error(e?.message || "Failed", { id: t });
+                    }
+                  }}><Send className="h-3.5 w-3.5 mr-1.5" />{b.status === "sent" ? "Resend" : "Send now"}</Button>
+                  <Button size="sm" variant="ghost" onClick={async () => {
+                    if (!confirm("Delete this broadcast?")) return;
+                    const { error } = await supabase.from("broadcasts").delete().eq("id", b.id);
+                    if (error) return toast.error(error.message);
+                    toast.success("Broadcast deleted");
                     qc.invalidateQueries({ queryKey: ["broadcasts"] });
-                  } catch (e: any) {
-                    toast.error(e?.message || "Failed", { id: t });
-                  }
-                }}><Send className="h-3.5 w-3.5 mr-1.5" />{b.status === "sent" ? "Resend" : "Send now"}</Button>
+                  }}><Trash2 className="h-3.5 w-3.5 mr-1.5 text-destructive" />Delete</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
