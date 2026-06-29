@@ -19,8 +19,17 @@ export const Route = createFileRoute("/_authenticated/users")({
 });
 
 function UsersPage() {
+  const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
+
+  async function removeUser(id: string, label: string) {
+    if (!confirm(`Delete ${label}? This removes them from the dashboard only.`)) return;
+    const { error } = await supabase.from("telegram_users").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("User deleted");
+    qc.invalidateQueries({ queryKey: ["telegram-users"] });
+  }
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["telegram-users"],
