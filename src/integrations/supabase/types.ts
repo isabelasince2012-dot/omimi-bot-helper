@@ -149,6 +149,56 @@ export type Database = {
         }
         Relationships: []
       }
+      inbox_messages: {
+        Row: {
+          chat_id: number
+          created_at: string
+          first_name: string | null
+          id: string
+          is_read: boolean
+          last_name: string | null
+          message_id: number | null
+          telegram_id: number
+          telegram_user_id: string | null
+          text: string
+          username: string | null
+        }
+        Insert: {
+          chat_id: number
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          is_read?: boolean
+          last_name?: string | null
+          message_id?: number | null
+          telegram_id: number
+          telegram_user_id?: string | null
+          text: string
+          username?: string | null
+        }
+        Update: {
+          chat_id?: number
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          is_read?: boolean
+          last_name?: string | null
+          message_id?: number | null
+          telegram_id?: number
+          telegram_user_id?: string | null
+          text?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_messages_telegram_user_id_fkey"
+            columns: ["telegram_user_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_logs: {
         Row: {
           error: string | null

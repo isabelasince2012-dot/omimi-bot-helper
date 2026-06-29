@@ -8,6 +8,7 @@ import {
   CalendarDays,
   BarChart3,
   Settings,
+  Inbox,
 } from "lucide-react";
 import {
   Sidebar,
@@ -23,6 +24,7 @@ import {
 
 const mainItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Inbox", url: "/inbox", icon: Inbox },
   { title: "Users", url: "/users", icon: Users },
   { title: "Broadcasts", url: "/broadcasts", icon: Send },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
