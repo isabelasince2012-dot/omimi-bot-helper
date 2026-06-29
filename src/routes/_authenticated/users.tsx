@@ -107,14 +107,15 @@ function UsersPage() {
               <TableHead>Joined</TableHead>
               <TableHead>Last active</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Loading...</TableCell></TableRow>
             )}
             {!isLoading && filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-12">
                 No users yet. Users will appear when they /start your Telegram bot.
               </TableCell></TableRow>
             )}
@@ -130,6 +131,11 @@ function UsersPage() {
                   <Badge variant={u.status === "active" ? "default" : "secondary"} className={u.status === "active" ? "bg-success/15 text-success border-success/30" : ""}>
                     {u.status}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="icon" onClick={() => removeUser(u.id, u.username ? `@${u.username}` : String(u.telegram_id))}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
