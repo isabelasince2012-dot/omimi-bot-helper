@@ -51,6 +51,48 @@ function BroadcastsPage() {
     },
   });
 
+  const { data: tgUsers } = useQuery({
+    queryKey: ["telegram-users-picker"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("telegram_users")
+        .select("id, telegram_id, username, first_name, last_name, status, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredUsers = useMemo(() => {
+    const list = tgUsers ?? [];
+    if (!userSearch.trim()) return list;
+    const s = userSearch.toLowerCase();
+    return list.filter((u) =>
+      u.username?.toLowerCase().includes(s) ||
+      u.first_name?.toLowerCase().includes(s) ||
+      u.last_name?.toLowerCase().includes(s) ||
+      String(u.telegram_id).includes(s),
+    );
+  }, [tgUsers, userSearch]);
+
+  function toggleUser(id: string) {
+    setForm((f) => ({
+      ...f,
+      audience_user_ids: f.audience_user_ids.includes(id)
+        ? f.audience_user_ids.filter((x) => x !== id)
+        : [...f.audience_user_ids, id],
+    }));
+  }
+
+  function selectNewUsers(days: number) {
+    const cutoff = Date.now() - days * 86400_000;
+    const ids = (tgUsers ?? [])
+      .filter((u) => new Date(u.created_at).getTime() >= cutoff)
+      .map((u) => u.id);
+    setForm((f) => ({ ...f, audience_user_ids: ids }));
+    toast.success(`${ids.length} new user${ids.length === 1 ? "" : "s"} selected`);
+  }
+
   async function save(status: "draft" | "scheduled" | "sending") {
     if (!form.message.trim()) return toast.error("Message is required");
     if (form.audience === "selected" && form.audience_user_ids.length === 0) {
