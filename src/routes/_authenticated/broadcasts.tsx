@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Send, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Send, Plus, Trash2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useServerFn } from "@tanstack/react-start";
@@ -34,8 +36,11 @@ function BroadcastsPage() {
     button_text: "",
     button_url: "",
     audience: "all",
+    audience_days: 7,
+    audience_user_ids: [] as string[],
     scheduled_at: "",
   });
+  const [userSearch, setUserSearch] = useState("");
 
   const { data: broadcasts } = useQuery({
     queryKey: ["broadcasts"],
@@ -46,8 +51,53 @@ function BroadcastsPage() {
     },
   });
 
+  const { data: tgUsers } = useQuery({
+    queryKey: ["telegram-users-picker"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("telegram_users")
+        .select("id, telegram_id, username, first_name, last_name, status, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredUsers = useMemo(() => {
+    const list = tgUsers ?? [];
+    if (!userSearch.trim()) return list;
+    const s = userSearch.toLowerCase();
+    return list.filter((u) =>
+      u.username?.toLowerCase().includes(s) ||
+      u.first_name?.toLowerCase().includes(s) ||
+      u.last_name?.toLowerCase().includes(s) ||
+      String(u.telegram_id).includes(s),
+    );
+  }, [tgUsers, userSearch]);
+
+  function toggleUser(id: string) {
+    setForm((f) => ({
+      ...f,
+      audience_user_ids: f.audience_user_ids.includes(id)
+        ? f.audience_user_ids.filter((x) => x !== id)
+        : [...f.audience_user_ids, id],
+    }));
+  }
+
+  function selectNewUsers(days: number) {
+    const cutoff = Date.now() - days * 86400_000;
+    const ids = (tgUsers ?? [])
+      .filter((u) => new Date(u.created_at).getTime() >= cutoff)
+      .map((u) => u.id);
+    setForm((f) => ({ ...f, audience_user_ids: ids }));
+    toast.success(`${ids.length} new user${ids.length === 1 ? "" : "s"} selected`);
+  }
+
   async function save(status: "draft" | "scheduled" | "sending") {
     if (!form.message.trim()) return toast.error("Message is required");
+    if (form.audience === "selected" && form.audience_user_ids.length === 0) {
+      return toast.error("Pick at least one user");
+    }
     const payload: any = {
       title: form.title || null,
       message: form.message,
@@ -56,13 +106,15 @@ function BroadcastsPage() {
       button_text: form.button_text || null,
       button_url: form.button_url || null,
       audience: form.audience,
+      audience_days: form.audience === "new" ? form.audience_days : null,
+      audience_user_ids: form.audience === "selected" ? form.audience_user_ids : null,
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       status,
     };
     const { data: inserted, error } = await supabase.from("broadcasts").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
     setOpen(false);
-    setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", scheduled_at: "" });
+    setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", audience_days: 7, audience_user_ids: [], scheduled_at: "" });
     qc.invalidateQueries({ queryKey: ["broadcasts"] });
 
     if (status === "sending" && inserted?.id) {
@@ -136,6 +188,7 @@ function BroadcastsPage() {
                       <SelectContent>
                         <SelectItem value="all">All users</SelectItem>
                         <SelectItem value="active">Active users only</SelectItem>
+                        <SelectItem value="new">New users (welcome)</SelectItem>
                         <SelectItem value="selected">Selected users</SelectItem>
                       </SelectContent>
                     </Select>
@@ -145,6 +198,70 @@ function BroadcastsPage() {
                     <Input type="datetime-local" value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
                   </div>
                 </div>
+
+                {form.audience === "new" && (
+                  <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <Label className="text-xs">Joined within last (days)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        className="w-24"
+                        value={form.audience_days}
+                        onChange={(e) => setForm({ ...form, audience_days: Math.max(1, Number(e.target.value) || 1) })}
+                      />
+                      <div className="flex gap-1">
+                        {[1, 3, 7, 14, 30].map((d) => (
+                          <Button key={d} type="button" size="sm" variant={form.audience_days === d ? "default" : "outline"} onClick={() => setForm({ ...form, audience_days: d })}>
+                            {d}d
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Will message {(tgUsers ?? []).filter((u) => Date.now() - new Date(u.created_at).getTime() <= form.audience_days * 86400_000).length} user(s) who joined in the last {form.audience_days} day(s). Perfect for welcome messages.
+                    </p>
+                  </div>
+                )}
+
+                {form.audience === "selected" && (
+                  <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs">Pick recipients ({form.audience_user_ids.length} selected)</Label>
+                      <div className="flex gap-1">
+                        <Button type="button" size="sm" variant="outline" onClick={() => selectNewUsers(7)}>New (7d)</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, audience_user_ids: (tgUsers ?? []).map((u) => u.id) })}>All</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setForm({ ...form, audience_user_ids: [] })}>Clear</Button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input className="pl-8 h-8" placeholder="Search users..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+                    </div>
+                    <ScrollArea className="h-48 rounded border border-border bg-background">
+                      <div className="divide-y divide-border">
+                        {filteredUsers.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-6">No users found.</p>
+                        )}
+                        {filteredUsers.map((u) => {
+                          const checked = form.audience_user_ids.includes(u.id);
+                          const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || (u.username ? `@${u.username}` : String(u.telegram_id));
+                          return (
+                            <label key={u.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                              <Checkbox checked={checked} onCheckedChange={() => toggleUser(u.id)} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm truncate">{name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{u.username ? `@${u.username} · ` : ""}joined {format(new Date(u.created_at), "MMM d")}</p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px]">{u.status}</Badge>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 {form.message && (
                   <Card className="bg-muted/40 border-border">
