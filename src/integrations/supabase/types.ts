@@ -98,6 +98,8 @@ export type Database = {
       broadcasts: {
         Row: {
           audience: string
+          audience_days: number | null
+          audience_user_ids: string[] | null
           button_text: string | null
           button_url: string | null
           created_at: string
@@ -115,6 +117,8 @@ export type Database = {
         }
         Insert: {
           audience?: string
+          audience_days?: number | null
+          audience_user_ids?: string[] | null
           button_text?: string | null
           button_url?: string | null
           created_at?: string
@@ -132,6 +136,8 @@ export type Database = {
         }
         Update: {
           audience?: string
+          audience_days?: number | null
+          audience_user_ids?: string[] | null
           button_text?: string | null
           button_url?: string | null
           created_at?: string
