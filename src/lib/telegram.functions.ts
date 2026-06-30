@@ -199,3 +199,59 @@ export const sendBroadcast = createServerFn({ method: "POST" })
 
     return { sent, failed, total: users.length };
   });
+
+export const replyToInboxMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { messageId: string; text: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const text = (data.text || "").trim();
+    if (!text) throw new Error("Reply text is required");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: msg, error: mErr } = await supabaseAdmin
+      .from("inbox_messages")
+      .select("*")
+      .eq("id", data.messageId)
+      .single();
+    if (mErr || !msg) throw new Error(mErr?.message || "Message not found");
+
+    const { data: settings } = await supabaseAdmin
+      .from("bot_settings")
+      .select("bot_token")
+      .limit(1)
+      .maybeSingle();
+    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    if (!token) throw new Error("No bot token configured. Set it in Settings.");
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: msg.chat_id,
+        text,
+        parse_mode: "HTML",
+        reply_to_message_id: msg.message_id ?? undefined,
+        allow_sending_without_reply: true,
+      }),
+    });
+    const json = (await res.json()) as { ok: boolean; description?: string };
+    if (!json.ok) throw new Error(json.description || "Telegram rejected the reply");
+
+    await supabaseAdmin.from("inbox_messages").update({ is_read: true }).eq("id", msg.id);
+    await supabaseAdmin.from("message_logs").insert({
+      telegram_user_id: msg.telegram_user_id,
+      source_type: "reply",
+      source_id: msg.id,
+      status: "sent",
+    }).then(() => {}, () => {});
+
+    return { ok: true };
+  });
+
