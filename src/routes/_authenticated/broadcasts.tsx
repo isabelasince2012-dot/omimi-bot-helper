@@ -53,6 +53,9 @@ function BroadcastsPage() {
 
   async function save(status: "draft" | "scheduled" | "sending") {
     if (!form.message.trim()) return toast.error("Message is required");
+    if (form.audience === "selected" && form.audience_user_ids.length === 0) {
+      return toast.error("Pick at least one user");
+    }
     const payload: any = {
       title: form.title || null,
       message: form.message,
@@ -61,13 +64,15 @@ function BroadcastsPage() {
       button_text: form.button_text || null,
       button_url: form.button_url || null,
       audience: form.audience,
+      audience_days: form.audience === "new" ? form.audience_days : null,
+      audience_user_ids: form.audience === "selected" ? form.audience_user_ids : null,
       scheduled_at: form.scheduled_at ? new Date(form.scheduled_at).toISOString() : null,
       status,
     };
     const { data: inserted, error } = await supabase.from("broadcasts").insert(payload).select("id").single();
     if (error) return toast.error(error.message);
     setOpen(false);
-    setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", scheduled_at: "" });
+    setForm({ title: "", message: "", media_url: "", media_type: "none", button_text: "", button_url: "", audience: "all", audience_days: 7, audience_user_ids: [], scheduled_at: "" });
     qc.invalidateQueries({ queryKey: ["broadcasts"] });
 
     if (status === "sending" && inserted?.id) {
