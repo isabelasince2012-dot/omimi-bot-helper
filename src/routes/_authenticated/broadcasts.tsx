@@ -36,8 +36,11 @@ function BroadcastsPage() {
     button_text: "",
     button_url: "",
     audience: "all",
+    audience_days: 7,
+    audience_user_ids: [] as string[],
     scheduled_at: "",
   });
+  const [userSearch, setUserSearch] = useState("");
 
   const { data: broadcasts } = useQuery({
     queryKey: ["broadcasts"],
