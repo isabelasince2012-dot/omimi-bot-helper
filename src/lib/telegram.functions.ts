@@ -130,7 +130,20 @@ export const sendBroadcast = createServerFn({ method: "POST" })
     if (bErr || !b) throw new Error(bErr?.message || "Broadcast not found");
 
     let q = supabaseAdmin.from("telegram_users").select("id, telegram_id, status");
-    if (b.audience === "active") q = q.eq("status", "active");
+    if (b.audience === "active") {
+      q = q.eq("status", "active");
+    } else if (b.audience === "new") {
+      const days = Math.max(1, Number(b.audience_days) || 7);
+      const since = new Date(Date.now() - days * 86400_000).toISOString();
+      q = q.gte("created_at", since);
+    } else if (b.audience === "selected") {
+      const ids: string[] = Array.isArray(b.audience_user_ids) ? b.audience_user_ids : [];
+      if (ids.length === 0) {
+        await supabaseAdmin.from("broadcasts").update({ status: "sent", sent_count: 0, failed_count: 0 }).eq("id", b.id);
+        return { sent: 0, failed: 0, total: 0 };
+      }
+      q = q.in("id", ids);
+    }
     const { data: users, error: uErr } = await q;
     if (uErr) throw new Error(uErr.message);
     if (!users || users.length === 0) {
