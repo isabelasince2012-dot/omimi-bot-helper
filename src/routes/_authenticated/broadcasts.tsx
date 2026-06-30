@@ -188,6 +188,7 @@ function BroadcastsPage() {
                       <SelectContent>
                         <SelectItem value="all">All users</SelectItem>
                         <SelectItem value="active">Active users only</SelectItem>
+                        <SelectItem value="new">New users (welcome)</SelectItem>
                         <SelectItem value="selected">Selected users</SelectItem>
                       </SelectContent>
                     </Select>
@@ -197,6 +198,70 @@ function BroadcastsPage() {
                     <Input type="datetime-local" value={form.scheduled_at} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} />
                   </div>
                 </div>
+
+                {form.audience === "new" && (
+                  <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <Label className="text-xs">Joined within last (days)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        className="w-24"
+                        value={form.audience_days}
+                        onChange={(e) => setForm({ ...form, audience_days: Math.max(1, Number(e.target.value) || 1) })}
+                      />
+                      <div className="flex gap-1">
+                        {[1, 3, 7, 14, 30].map((d) => (
+                          <Button key={d} type="button" size="sm" variant={form.audience_days === d ? "default" : "outline"} onClick={() => setForm({ ...form, audience_days: d })}>
+                            {d}d
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Will message {(tgUsers ?? []).filter((u) => Date.now() - new Date(u.created_at).getTime() <= form.audience_days * 86400_000).length} user(s) who joined in the last {form.audience_days} day(s). Perfect for welcome messages.
+                    </p>
+                  </div>
+                )}
+
+                {form.audience === "selected" && (
+                  <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-xs">Pick recipients ({form.audience_user_ids.length} selected)</Label>
+                      <div className="flex gap-1">
+                        <Button type="button" size="sm" variant="outline" onClick={() => selectNewUsers(7)}>New (7d)</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setForm({ ...form, audience_user_ids: (tgUsers ?? []).map((u) => u.id) })}>All</Button>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setForm({ ...form, audience_user_ids: [] })}>Clear</Button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input className="pl-8 h-8" placeholder="Search users..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+                    </div>
+                    <ScrollArea className="h-48 rounded border border-border bg-background">
+                      <div className="divide-y divide-border">
+                        {filteredUsers.length === 0 && (
+                          <p className="text-xs text-muted-foreground text-center py-6">No users found.</p>
+                        )}
+                        {filteredUsers.map((u) => {
+                          const checked = form.audience_user_ids.includes(u.id);
+                          const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || (u.username ? `@${u.username}` : String(u.telegram_id));
+                          return (
+                            <label key={u.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                              <Checkbox checked={checked} onCheckedChange={() => toggleUser(u.id)} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm truncate">{name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{u.username ? `@${u.username} · ` : ""}joined {format(new Date(u.created_at), "MMM d")}</p>
+                              </div>
+                              <Badge variant="outline" className="text-[10px]">{u.status}</Badge>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
 
                 {form.message && (
                   <Card className="bg-muted/40 border-border">
