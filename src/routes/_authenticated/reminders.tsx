@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/reminders")({
-  head: () => ({ meta: [{ title: "Reminders — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Reminders — tele-bot" }] }),
   component: RemindersPage,
 });
 

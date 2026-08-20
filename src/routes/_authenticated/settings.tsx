@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { Bot, Webhook, Zap, Link2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Settings — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Settings — tele-bot" }] }),
   component: SettingsPage,
 });
 

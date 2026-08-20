@@ -20,7 +20,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { sendBroadcast } from "@/lib/telegram.functions";
 
 export const Route = createFileRoute("/_authenticated/broadcasts")({
-  head: () => ({ meta: [{ title: "Broadcasts — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Broadcasts — tele-bot" }] }),
   component: BroadcastsPage,
 });
 

@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/users")({
-  head: () => ({ meta: [{ title: "Users — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Users — tele-bot" }] }),
   component: UsersPage,
 });
 

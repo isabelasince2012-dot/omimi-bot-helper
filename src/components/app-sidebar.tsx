@@ -49,7 +49,7 @@ export function AppSidebar() {
             <Send className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-semibold leading-none">Pulse</p>
+            <p className="text-sm font-semibold leading-none">tele-bot</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Telegram dashboard</p>
           </div>
         </div>

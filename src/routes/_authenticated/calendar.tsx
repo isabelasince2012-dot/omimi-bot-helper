@@ -10,7 +10,7 @@ import { format, isSameDay } from "date-fns";
 import { BellRing, Send, Megaphone } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
-  head: () => ({ meta: [{ title: "Calendar — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Calendar — tele-bot" }] }),
   component: CalendarPage,
 });
 

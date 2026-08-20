@@ -10,7 +10,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } fro
 import { format, subDays } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — tele-bot" }] }),
   component: Dashboard,
 });
 
