@@ -36,7 +36,7 @@ import {
 import { replyToInboxMessage } from "@/lib/telegram.functions";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
-  head: () => ({ meta: [{ title: "Inbox — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Inbox — tele-bot" }] }),
   component: InboxPage,
 });
 

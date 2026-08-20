@@ -73,6 +73,92 @@ export const testBot = createServerFn({ method: "POST" })
   });
 
 
+export const verifyWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { url?: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    const { data: settings } = await context.supabase
+      .from("bot_settings")
+      .select("bot_token, webhook_url")
+      .limit(1)
+      .maybeSingle();
+
+    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    if (!token) throw new Error("No bot token configured. Paste a token from @BotFather first.");
+
+    const target = (data.url || settings?.webhook_url || "").trim();
+
+    // 1. What Telegram thinks
+    const whRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    const wh = (await whRes.json()) as {
+      ok: boolean;
+      description?: string;
+      result?: {
+        url: string;
+        pending_update_count: number;
+        last_error_message?: string;
+        last_error_date?: number;
+        ip_address?: string;
+        max_connections?: number;
+      };
+    };
+    if (!wh.ok) throw new Error(wh.description || "Telegram rejected the request");
+
+    const registeredUrl = wh.result?.url || "";
+
+    // 2. Can we reach the endpoint ourselves?
+    let reachable = false;
+    let reachStatus: number | null = null;
+    let reachError: string | null = null;
+    const probeUrl = registeredUrl || target;
+    if (probeUrl) {
+      try {
+        const probe = await fetch(probeUrl, { method: "GET" });
+        reachStatus = probe.status;
+        reachable = probe.status < 500;
+      } catch (e) {
+        reachError = e instanceof Error ? e.message : "Request failed";
+      }
+    }
+
+    // 3. Send a simulated update so you can confirm handling end-to-end
+    let testDelivery: "ok" | "failed" | "skipped" = "skipped";
+    if (probeUrl) {
+      try {
+        const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+        const res = await fetch(probeUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(secret ? { "x-telegram-bot-api-secret-token": secret } : {}),
+          },
+          body: JSON.stringify({ update_id: 0, __test: true }),
+        });
+        testDelivery = res.ok ? "ok" : "failed";
+      } catch {
+        testDelivery = "failed";
+      }
+    }
+
+    return {
+      registered_url: registeredUrl || null,
+      matches_configured: Boolean(target) && registeredUrl === target,
+      pending_updates: wh.result?.pending_update_count ?? 0,
+      last_error: wh.result?.last_error_message || null,
+      ip_address: wh.result?.ip_address || null,
+      reachable,
+      reach_status: reachStatus,
+      reach_error: reachError,
+      test_delivery: testDelivery,
+    };
+  });
+
 export const setWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { url: string }) => input)

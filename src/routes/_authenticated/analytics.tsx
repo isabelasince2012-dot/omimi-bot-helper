@@ -10,7 +10,7 @@ import { Users, Send, CheckCircle2, XCircle } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
-  head: () => ({ meta: [{ title: "Analytics — Pulse" }] }),
+  head: () => ({ meta: [{ title: "Analytics — tele-bot" }] }),
   component: AnalyticsPage,
 });
 

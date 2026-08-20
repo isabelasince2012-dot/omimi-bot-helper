@@ -11,8 +11,8 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Pulse" },
-      { name: "description", content: "Admin sign in to the Pulse Telegram broadcast dashboard." },
+      { title: "Sign in — tele-bot" },
+      { name: "description", content: "Admin sign in to the tele-bot Telegram broadcast dashboard." },
     ],
   }),
   component: AuthPage,
@@ -65,7 +65,7 @@ function AuthPage() {
             <Send className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Pulse</h1>
+            <h1 className="text-lg font-semibold tracking-tight">tele-bot</h1>
             <p className="text-xs text-muted-foreground">Telegram broadcast dashboard</p>
           </div>
         </div>
