@@ -214,3 +214,74 @@ webhook to `https://<your-domain>/api/public/telegram/webhook`.
 | Telegram webhook returns 401 | `TELEGRAM_WEBHOOK_SECRET` mismatch | Ensure the env var matches what Telegram sends (re-Register from Settings) |
 | `/start` doesn't create a user | Webhook not registered, or wrong URL | Settings → Register; check host logs for POSTs to `/api/public/telegram/webhook` |
 | Broadcasts save but don't send | Bot token invalid or missing | Settings → Test bot; fix token; Resend from history |
+
+---
+
+## 6. Full system check (run before and after deploy)
+
+Use this as a single pass over every moving part.
+
+### 6.1 Build-time
+
+| Check | Command | Expected |
+| --- | --- | --- |
+| Types | `bunx tsgo --noEmit` | no output |
+| Lint | `bun run lint` | no errors |
+| Production build | `bun run build` | `Nitro built .output/server/index.mjs` |
+| Boot the bundle | `bun run start` | server listens on `PORT` (default 3000) |
+
+### 6.2 Environment variables
+
+Required (app will not boot without them):
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`.
+
+Recommended: `TELEGRAM_WEBHOOK_SECRET` (rejects forged webhook posts),
+`TELEGRAM_BOT_TOKEN` (fallback when no token is saved in Settings),
+`NODE_VERSION=20`.
+
+### 6.3 HTTP endpoints
+
+```bash
+BASE=https://<your-deployment>
+
+curl -s $BASE/api/public/telegram/verify | jq
+# ok:true, token_configured:true, secret_required:true, configured_webhook_url set
+
+curl -s $BASE/api/public/telegram/webhook | jq
+# ok:true, method_expected:"POST"
+```
+
+`token_configured:false` → paste the token in Settings.
+`secret_required:false` → `TELEGRAM_WEBHOOK_SECRET` is missing on the host.
+
+### 6.4 In-app checks (Settings page)
+
+1. **Test bot** → shows `@username`, bot id, pending updates, and any
+   permission or webhook warnings.
+2. **Register** webhook → `https://<your-deployment>/api/public/telegram/webhook`.
+3. **Verify connection** → confirms the URL Telegram has registered, whether it
+   matches your configured URL, endpoint reachability, last delivery error, and
+   sends a simulated update.
+
+### 6.5 End-to-end flows
+
+- [ ] Sign up / sign in works; first account is `admin` in `user_roles`
+- [ ] `/start` in Telegram registers the user and shows the inline menu
+- [ ] User appears on the **Users** page; CSV export downloads
+- [ ] Free-form message lands in **Inbox**; reply (or template) is delivered
+- [ ] Broadcast to *All users* / *Active* / *New users* / *Selected* delivers and
+      updates `sent_count` / `failed_count`
+- [ ] Announcement publishes and appears in history
+- [ ] Reminder appears on the **Calendar** with the correct next run
+- [ ] **Analytics** charts render with non-zero data
+- [ ] PWA installs (manifest + icons served from `/manifest.webmanifest`)
+
+### 6.6 Common failures
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Every action says "Forbidden" | account has no `admin` row | insert `(user_id,'admin')` into `user_roles` |
+| Webhook 401 | `TELEGRAM_WEBHOOK_SECRET` mismatch | set it on the host, re-Register from Settings |
+| Verify shows `reachable:false` | deployment not public / wrong URL | use the host's public HTTPS URL |
+| Broadcast sends 0 | no users match the audience filter | widen audience or lower the "new users" day window |
