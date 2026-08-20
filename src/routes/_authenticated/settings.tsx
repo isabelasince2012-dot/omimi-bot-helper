@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { testBot, setWebhook, validateTokenFormat } from "@/lib/telegram.functions";
+import { testBot, setWebhook, verifyWebhook, validateTokenFormat } from "@/lib/telegram.functions";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bot, Webhook, Zap, Link2 } from "lucide-react";
+import { Bot, Webhook, Zap, Link2, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — tele-bot" }] }),
@@ -24,6 +24,9 @@ function SettingsPage() {
   const register = useServerFn(setWebhook);
   const [testing, setTesting] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const verify = useServerFn(verifyWebhook);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<Awaited<ReturnType<typeof verifyWebhook>> | null>(null);
   const [form, setForm] = useState({
     bot_token: "",
     bot_username: "",
@@ -107,6 +110,30 @@ function SettingsPage() {
     }
   }
 
+  async function handleVerifyWebhook() {
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const res = await verify({ data: { url: form.webhook_url || undefined } });
+      setVerifyResult(res);
+      if (!res.registered_url) {
+        toast.error("No webhook registered with Telegram yet", { description: "Click Register first." });
+      } else if (res.reachable && res.test_delivery === "ok" && !res.last_error) {
+        toast.success("Webhook verified — Telegram can reach your bot", {
+          description: `${res.registered_url} · ${res.pending_updates} pending updates`,
+        });
+      } else {
+        toast.warning("Webhook reachable with issues", {
+          description: res.last_error || res.reach_error || `Test delivery: ${res.test_delivery}`,
+        });
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Settings" description="Configure your Telegram bot and broadcast behavior." />
@@ -152,6 +179,30 @@ function SettingsPage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">Click Register to tell Telegram to send updates to this URL.</p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button variant="secondary" size="sm" onClick={handleVerifyWebhook} disabled={verifying || !form.bot_token}>
+                  <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+                  {verifying ? "Verifying..." : "Verify webhook"}
+                </Button>
+                <a
+                  href="/api/public/telegram/verify"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary underline-offset-4 hover:underline"
+                >
+                  Open public status endpoint
+                </a>
+              </div>
+              {verifyResult && (
+                <div className="rounded-md border border-border bg-muted/30 p-3 text-xs space-y-1">
+                  <Row label="Registered URL" value={verifyResult.registered_url ?? "None"} />
+                  <Row label="Matches this URL" value={verifyResult.matches_configured ? "Yes" : "No"} />
+                  <Row label="Endpoint reachable" value={verifyResult.reachable ? `Yes (HTTP ${verifyResult.reach_status})` : verifyResult.reach_error ?? "No"} />
+                  <Row label="Test update delivery" value={verifyResult.test_delivery} />
+                  <Row label="Pending updates" value={String(verifyResult.pending_updates)} />
+                  <Row label="Last Telegram error" value={verifyResult.last_error ?? "None"} />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -172,6 +223,15 @@ function SettingsPage() {
 
         <div className="flex justify-end"><Button onClick={save}>Save settings</Button></div>
       </div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium break-all">{value}</span>
     </div>
   );
 }
