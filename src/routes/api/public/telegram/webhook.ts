@@ -6,6 +6,15 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/telegram/webhook")({
   server: {
     handlers: {
+      // Quick browser/curl check that Telegram can reach this endpoint.
+      GET: async ({ request }) =>
+        Response.json({
+          ok: true,
+          endpoint: new URL(request.url).origin + "/api/public/telegram/webhook",
+          method_expected: "POST",
+          secret_required: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET),
+          time: new Date().toISOString(),
+        }),
       POST: async ({ request }) => {
         const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
         if (expectedSecret) {
