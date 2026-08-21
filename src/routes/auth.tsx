@@ -55,6 +55,18 @@ function AuthPage() {
     if (!signInError) navigate({ to: "/dashboard", replace: true });
   }
 
+  async function handleForgotPassword() {
+    if (!email) return toast.error("Enter your email first");
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Password reset link sent. Check your inbox.");
+  }
+
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-background relative overflow-hidden">
       <div className="absolute inset-0 -z-10 opacity-40"
