@@ -21,6 +21,7 @@ export type Database = {
           id: string
           image_url: string | null
           message: string
+          owner_id: string | null
           priority: string
           publish_at: string | null
           status: string
@@ -33,6 +34,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message: string
+          owner_id?: string | null
           priority?: string
           publish_at?: string | null
           status?: string
@@ -45,6 +47,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message?: string
+          owner_id?: string | null
           priority?: string
           publish_at?: string | null
           status?: string
@@ -61,10 +64,12 @@ export type Database = {
           default_timezone: string
           id: string
           notification_sound: boolean
+          owner_id: string
           rate_limit: number
           retry_attempts: number
           theme: string
           updated_at: string
+          webhook_token: string
           webhook_url: string | null
         }
         Insert: {
@@ -74,10 +79,12 @@ export type Database = {
           default_timezone?: string
           id?: string
           notification_sound?: boolean
+          owner_id?: string
           rate_limit?: number
           retry_attempts?: number
           theme?: string
           updated_at?: string
+          webhook_token?: string
           webhook_url?: string | null
         }
         Update: {
@@ -87,10 +94,12 @@ export type Database = {
           default_timezone?: string
           id?: string
           notification_sound?: boolean
+          owner_id?: string
           rate_limit?: number
           retry_attempts?: number
           theme?: string
           updated_at?: string
+          webhook_token?: string
           webhook_url?: string | null
         }
         Relationships: []
@@ -109,6 +118,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message: string
+          owner_id: string | null
           scheduled_at: string | null
           sent_count: number
           status: string
@@ -128,6 +138,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message: string
+          owner_id?: string | null
           scheduled_at?: string | null
           sent_count?: number
           status?: string
@@ -147,6 +158,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message?: string
+          owner_id?: string | null
           scheduled_at?: string | null
           sent_count?: number
           status?: string
@@ -164,6 +176,7 @@ export type Database = {
           is_read: boolean
           last_name: string | null
           message_id: number | null
+          owner_id: string | null
           telegram_id: number
           telegram_user_id: string | null
           text: string
@@ -177,6 +190,7 @@ export type Database = {
           is_read?: boolean
           last_name?: string | null
           message_id?: number | null
+          owner_id?: string | null
           telegram_id: number
           telegram_user_id?: string | null
           text: string
@@ -190,6 +204,7 @@ export type Database = {
           is_read?: boolean
           last_name?: string | null
           message_id?: number | null
+          owner_id?: string | null
           telegram_id?: number
           telegram_user_id?: string | null
           text?: string
@@ -209,6 +224,7 @@ export type Database = {
         Row: {
           error: string | null
           id: string
+          owner_id: string | null
           sent_at: string
           source_id: string | null
           source_type: string
@@ -218,6 +234,7 @@ export type Database = {
         Insert: {
           error?: string | null
           id?: string
+          owner_id?: string | null
           sent_at?: string
           source_id?: string | null
           source_type: string
@@ -227,6 +244,7 @@ export type Database = {
         Update: {
           error?: string | null
           id?: string
+          owner_id?: string | null
           sent_at?: string
           source_id?: string | null
           source_type?: string
@@ -250,6 +268,7 @@ export type Database = {
           id: string
           message: string
           next_run: string | null
+          owner_id: string | null
           repeat_type: string
           schedule: string
           status: string
@@ -263,6 +282,7 @@ export type Database = {
           id?: string
           message: string
           next_run?: string | null
+          owner_id?: string | null
           repeat_type?: string
           schedule: string
           status?: string
@@ -276,6 +296,7 @@ export type Database = {
           id?: string
           message?: string
           next_run?: string | null
+          owner_id?: string | null
           repeat_type?: string
           schedule?: string
           status?: string
@@ -291,6 +312,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          owner_id: string | null
           title: string
           updated_at: string
         }
@@ -299,6 +321,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          owner_id?: string | null
           title: string
           updated_at?: string
         }
@@ -307,6 +330,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          owner_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -320,6 +344,7 @@ export type Database = {
           language: string | null
           last_active: string | null
           last_name: string | null
+          owner_id: string
           phone: string | null
           status: string
           telegram_id: number
@@ -333,6 +358,7 @@ export type Database = {
           language?: string | null
           last_active?: string | null
           last_name?: string | null
+          owner_id?: string
           phone?: string | null
           status?: string
           telegram_id: number
@@ -346,6 +372,7 @@ export type Database = {
           language?: string | null
           last_active?: string | null
           last_name?: string | null
+          owner_id?: string
           phone?: string | null
           status?: string
           telegram_id?: number
