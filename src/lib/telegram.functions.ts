@@ -11,22 +11,47 @@ export function validateTokenFormat(token: string): string | null {
   return null;
 }
 
+type WorkspaceSettings = {
+  id: string;
+  bot_token: string | null;
+  bot_username: string | null;
+  webhook_url: string | null;
+  webhook_token: string;
+};
+
+/** Loads the signed-in account's own workspace settings (RLS-scoped). */
+async function loadOwnSettings(context: {
+  supabase: { from: (t: string) => any };
+  userId: string;
+}): Promise<WorkspaceSettings> {
+  const { data, error } = await context.supabase
+    .from("bot_settings")
+    .select("id, bot_token, bot_username, webhook_url, webhook_token")
+    .eq("owner_id", context.userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Workspace not initialised. Reload the page and try again.");
+  return data as WorkspaceSettings;
+}
+
+export const getWorkspace = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const s = await loadOwnSettings(context);
+    return {
+      id: s.id,
+      bot_username: s.bot_username,
+      webhook_token: s.webhook_token,
+      has_token: Boolean(s.bot_token),
+    };
+  });
+
 export const testBot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
+    const settings = await loadOwnSettings(context);
 
-    const { data: settings } = await context.supabase
-      .from("bot_settings")
-      .select("bot_token")
-      .limit(1)
-      .maybeSingle();
-
-    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    const token = (settings.bot_token || "").trim();
     if (!token) throw new Error("No bot token configured. Paste a token from @BotFather first.");
     const formatErr = validateTokenFormat(token);
     if (formatErr) throw new Error(formatErr);
@@ -41,7 +66,7 @@ export const testBot = createServerFn({ method: "POST" })
       ok: boolean;
       error_code?: number;
       description?: string;
-      result?: { id: number; username: string; first_name: string; can_join_groups?: boolean; can_read_all_group_messages?: boolean; supports_inline_queries?: boolean };
+      result?: { id: number; username: string; first_name: string; can_join_groups?: boolean };
     };
     if (!me.ok) {
       if (me.error_code === 401) throw new Error("Token rejected by Telegram (401 Unauthorized). The bot token is invalid or has been revoked — regenerate it in @BotFather.");
@@ -49,16 +74,22 @@ export const testBot = createServerFn({ method: "POST" })
       throw new Error(`Telegram rejected the token: ${me.description || "unknown error"}`);
     }
 
-    // Check webhook + permissions
     const whRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
     const wh = (await whRes.json()) as { ok: boolean; result?: { url: string; last_error_message?: string; pending_update_count: number } };
 
     const missing: string[] = [];
     if (me.result?.can_join_groups === false) missing.push("join groups");
-    // Telegram requires sending messages — getMe success implies that works. Surface webhook issues:
     const warnings: string[] = [];
     if (wh.ok && wh.result?.last_error_message) {
       warnings.push(`Webhook delivery error: ${wh.result.last_error_message}`);
+    }
+
+    // Remember the bot username for this workspace
+    if (me.result?.username) {
+      await context.supabase
+        .from("bot_settings")
+        .update({ bot_username: me.result.username })
+        .eq("id", settings.id);
     }
 
     return {
@@ -72,29 +103,17 @@ export const testBot = createServerFn({ method: "POST" })
     };
   });
 
-
 export const verifyWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { url?: string }) => input)
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
+    const settings = await loadOwnSettings(context);
 
-    const { data: settings } = await context.supabase
-      .from("bot_settings")
-      .select("bot_token, webhook_url")
-      .limit(1)
-      .maybeSingle();
-
-    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    const token = (settings.bot_token || "").trim();
     if (!token) throw new Error("No bot token configured. Paste a token from @BotFather first.");
 
-    const target = (data.url || settings?.webhook_url || "").trim();
+    const target = (data.url || settings.webhook_url || "").trim();
 
-    // 1. What Telegram thinks
     const whRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
     const wh = (await whRes.json()) as {
       ok: boolean;
@@ -103,16 +122,13 @@ export const verifyWebhook = createServerFn({ method: "POST" })
         url: string;
         pending_update_count: number;
         last_error_message?: string;
-        last_error_date?: number;
         ip_address?: string;
-        max_connections?: number;
       };
     };
     if (!wh.ok) throw new Error(wh.description || "Telegram rejected the request");
 
     const registeredUrl = wh.result?.url || "";
 
-    // 2. Can we reach the endpoint ourselves?
     let reachable = false;
     let reachStatus: number | null = null;
     let reachError: string | null = null;
@@ -127,7 +143,6 @@ export const verifyWebhook = createServerFn({ method: "POST" })
       }
     }
 
-    // 3. Send a simulated update so you can confirm handling end-to-end
     let testDelivery: "ok" | "failed" | "skipped" = "skipped";
     if (probeUrl) {
       try {
@@ -163,20 +178,14 @@ export const setWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { url: string }) => input)
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
-    const { data: settings } = await context.supabase
-      .from("bot_settings")
-      .select("bot_token")
-      .limit(1)
-      .maybeSingle();
-
-    const token = settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN;
+    const settings = await loadOwnSettings(context);
+    const token = (settings.bot_token || "").trim();
     if (!token) throw new Error("No bot token configured");
+
+    // The URL must be this workspace's own webhook path.
+    if (!data.url.includes(settings.webhook_token)) {
+      throw new Error("Use your own webhook URL shown in Settings.");
+    }
 
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: "POST",
@@ -185,6 +194,8 @@ export const setWebhook = createServerFn({ method: "POST" })
     });
     const json = (await res.json()) as { ok: boolean; description?: string };
     if (!json.ok) throw new Error(json.description || "Failed to set webhook");
+
+    await context.supabase.from("bot_settings").update({ webhook_url: data.url }).eq("id", settings.id);
     return { ok: true };
   });
 
@@ -192,30 +203,25 @@ export const sendBroadcast = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { broadcastId: string }) => input)
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const { data: settings } = await supabaseAdmin
-      .from("bot_settings")
-      .select("bot_token")
-      .limit(1)
-      .maybeSingle();
-    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
+    const settings = await loadOwnSettings(context);
+    const token = (settings.bot_token || "").trim();
     if (!token) throw new Error("No bot token configured. Set it in Settings.");
+
+    const ownerId = context.userId;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: b, error: bErr } = await supabaseAdmin
       .from("broadcasts")
       .select("*")
       .eq("id", data.broadcastId)
+      .eq("owner_id", ownerId)
       .single();
     if (bErr || !b) throw new Error(bErr?.message || "Broadcast not found");
 
-    let q = supabaseAdmin.from("telegram_users").select("id, telegram_id, status");
+    let q = supabaseAdmin
+      .from("telegram_users")
+      .select("id, telegram_id, status")
+      .eq("owner_id", ownerId);
     if (b.audience === "active") {
       q = q.eq("status", "active");
     } else if (b.audience === "new") {
@@ -275,14 +281,14 @@ export const sendBroadcast = createServerFn({ method: "POST" })
         const json = (await res.json()) as { ok: boolean; description?: string };
         if (json.ok) {
           sent++;
-          logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "sent" });
+          logs.push({ owner_id: ownerId, telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "sent" });
         } else {
           failed++;
-          logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: json.description || "unknown" });
+          logs.push({ owner_id: ownerId, telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: json.description || "unknown" });
         }
       } catch (e: any) {
         failed++;
-        logs.push({ telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: e?.message || "network error" });
+        logs.push({ owner_id: ownerId, telegram_user_id: u.id, source_type: "broadcast", source_id: b.id, status: "failed", error: e?.message || "network error" });
       }
       await new Promise((r) => setTimeout(r, 40));
     }
@@ -303,31 +309,23 @@ export const replyToInboxMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { messageId: string; text: string }) => input)
   .handler(async ({ data, context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (!isAdmin) throw new Error("Forbidden");
+    const settings = await loadOwnSettings(context);
+    const token = (settings.bot_token || "").trim();
+    if (!token) throw new Error("No bot token configured. Set it in Settings.");
 
     const text = (data.text || "").trim();
     if (!text) throw new Error("Reply text is required");
 
+    const ownerId = context.userId;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: msg, error: mErr } = await supabaseAdmin
       .from("inbox_messages")
       .select("*")
       .eq("id", data.messageId)
+      .eq("owner_id", ownerId)
       .single();
     if (mErr || !msg) throw new Error(mErr?.message || "Message not found");
-
-    const { data: settings } = await supabaseAdmin
-      .from("bot_settings")
-      .select("bot_token")
-      .limit(1)
-      .maybeSingle();
-    const token = (settings?.bot_token || process.env.TELEGRAM_BOT_TOKEN || "").trim();
-    if (!token) throw new Error("No bot token configured. Set it in Settings.");
 
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
@@ -345,6 +343,7 @@ export const replyToInboxMessage = createServerFn({ method: "POST" })
 
     await supabaseAdmin.from("inbox_messages").update({ is_read: true }).eq("id", msg.id);
     await supabaseAdmin.from("message_logs").insert({
+      owner_id: ownerId,
       telegram_user_id: msg.telegram_user_id,
       source_type: "reply",
       source_id: msg.id,
@@ -353,4 +352,3 @@ export const replyToInboxMessage = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
-
