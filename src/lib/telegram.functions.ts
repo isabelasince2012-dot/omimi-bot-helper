@@ -1,38 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-const TOKEN_REGEX = /^\d{6,12}:[A-Za-z0-9_-]{30,}$/;
-
-export function validateTokenFormat(token: string): string | null {
-  if (!token || !token.trim()) return "Bot token is required";
-  if (!TOKEN_REGEX.test(token.trim())) {
-    return "Invalid token format. Expected '<bot_id>:<secret>' from @BotFather";
-  }
-  return null;
-}
-
-type WorkspaceSettings = {
-  id: string;
-  bot_token: string | null;
-  bot_username: string | null;
-  webhook_url: string | null;
-  webhook_token: string;
-};
-
-/** Loads the signed-in account's own workspace settings (RLS-scoped). */
-async function loadOwnSettings(context: {
-  supabase: { from: (t: string) => any };
-  userId: string;
-}): Promise<WorkspaceSettings> {
-  const { data, error } = await context.supabase
-    .from("bot_settings")
-    .select("id, bot_token, bot_username, webhook_url, webhook_token")
-    .eq("owner_id", context.userId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Workspace not initialised. Reload the page and try again.");
-  return data as WorkspaceSettings;
-}
+import { validateTokenFormat } from "@/lib/telegram-utils";
+import { loadOwnSettings } from "@/lib/telegram-settings.server";
 
 export const getWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -84,18 +53,21 @@ export const testBot = createServerFn({ method: "POST" })
       warnings.push(`Webhook delivery error: ${wh.result.last_error_message}`);
     }
 
+    const bot = me.result;
+    if (!bot) throw new Error("Telegram did not return bot details. Try again.");
+
     // Remember the bot username for this workspace
-    if (me.result?.username) {
+    if (bot.username) {
       await context.supabase
         .from("bot_settings")
-        .update({ bot_username: me.result.username })
+        .update({ bot_username: bot.username })
         .eq("id", settings.id);
     }
 
     return {
-      id: me.result!.id,
-      username: me.result!.username,
-      first_name: me.result!.first_name,
+      id: bot.id,
+      username: bot.username,
+      first_name: bot.first_name,
       webhook_url: wh.result?.url || null,
       pending_updates: wh.result?.pending_update_count ?? 0,
       missing_permissions: missing,
@@ -146,12 +118,11 @@ export const verifyWebhook = createServerFn({ method: "POST" })
     let testDelivery: "ok" | "failed" | "skipped" = "skipped";
     if (probeUrl) {
       try {
-        const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
         const res = await fetch(probeUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(secret ? { "x-telegram-bot-api-secret-token": secret } : {}),
+            "x-telegram-bot-api-secret-token": settings.webhook_token,
           },
           body: JSON.stringify({ update_id: 0, __test: true }),
         });
@@ -190,7 +161,11 @@ export const setWebhook = createServerFn({ method: "POST" })
     const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: data.url, allowed_updates: ["message", "edited_message", "callback_query"] }),
+      body: JSON.stringify({
+        url: data.url,
+        secret_token: settings.webhook_token,
+        allowed_updates: ["message", "edited_message", "callback_query"],
+      }),
     });
     const json = (await res.json()) as { ok: boolean; description?: string };
     if (!json.ok) throw new Error(json.description || "Failed to set webhook");
